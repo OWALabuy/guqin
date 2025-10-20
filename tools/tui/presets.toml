@@ -1,0 +1,33 @@
+# 古琴调弦预设配置
+# Guqin Tuning Presets
+
+[presets]
+
+[presets."F大调正调"]
+description = "最常用的调性"
+tuning = ["C2", "D2", "F2", "G2", "A2", "C3", "D3"]
+
+[presets."G大调"]
+description = "G major"
+tuning = ["D2", "E2", "G2", "A2", "B2", "D3", "E3"]
+
+[presets."D大调"]
+description = "D major"
+tuning = ["A1", "B1", "D2", "E2", "F#2", "A2", "B2"]
+
+[presets."C大调"]
+description = "C major"
+tuning = ["G1", "A1", "C2", "D2", "E2", "G2", "A2"]
+
+[presets."慢角调"]
+description = "传统调式"
+tuning = ["C2", "D2", "F2", "G2", "A2", "C3", "D3"]
+
+[presets."清商调"]
+description = "传统调式"
+tuning = ["C2", "D2", "E2", "G2", "A2", "C3", "D3"]
+
+[presets."蕤宾调"]
+description = "传统调式"
+tuning = ["C2", "D2", "F#2", "G2", "A2", "C3", "D3"]
+

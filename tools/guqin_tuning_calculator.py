@@ -13,10 +13,11 @@ from rich.style import Style
 
 
 class GuqinTuningCalculator:
-    """古琴调弦计算器"""
+    """古琴调弦计算器 / Guqin Tuning Calculator"""
     
     # 按音徽位配置（徽位名称 -> 音程关系）
-    ANYIN_POSITIONS = [
+    # Stopped notes positions (hui position -> interval relationship)
+    STOPPED_NOTES_POSITIONS = [
         ('三徽', '大十七度'),
         ('三徽半', '大十六度'),
         ('四徽', '十五度'),
@@ -39,7 +40,8 @@ class GuqinTuningCalculator:
     ]
     
     # 泛音徽位配置
-    FANYIN_POSITIONS = [
+    # Harmonics positions (hui position -> interval relationship)
+    HARMONICS_POSITIONS = [
         ('暗徽4', '大九度+纯五度'),
         ('十三徽', '纯二十二度'),
         ('暗徽3', '小九度+纯五度'),
@@ -71,8 +73,8 @@ class GuqinTuningCalculator:
             raise ValueError("必须提供7根弦的空弦音")
         
         self.tuning = tuning
-        self.anyin_table = self._calculate_table(self.ANYIN_POSITIONS)
-        self.fanyin_table = self._calculate_table(self.FANYIN_POSITIONS)
+        self.stopped_notes_table = self._calculate_table(self.STOPPED_NOTES_POSITIONS)
+        self.harmonics_table = self._calculate_table(self.HARMONICS_POSITIONS)
     
     def _calculate_table(self, positions: List[Tuple[str, str]]) -> Dict:
         """
@@ -100,14 +102,14 @@ class GuqinTuningCalculator:
         """获取所有出现的音名（用于颜色分配）"""
         notes = set()
         
-        # 收集按音
-        for string_notes in self.anyin_table['strings']:
+        # 收集按音 (stopped notes)
+        for string_notes in self.stopped_notes_table['strings']:
             for note in string_notes:
                 if note:
                     notes.add(note)
         
-        # 收集泛音
-        for string_notes in self.fanyin_table['strings']:
+        # 收集泛音 (harmonics)
+        for string_notes in self.harmonics_table['strings']:
             for note in string_notes:
                 if note:
                     notes.add(note)
@@ -156,21 +158,21 @@ class GuqinTuningCalculator:
         tuning_table.add_row(*tuning_row)
         console.print(tuning_table)
         
-        # 显示按音音位表
-        console.print("\n[bold white]按音音位表:[/bold white]")
-        anyin_table = Table(show_header=True, header_style="bold white", border_style="white")
-        anyin_table.add_column("徽位", style="white", justify="center", width=10)
+        # 显示按音音位表 (Stopped Notes)
+        console.print("\n[bold white]按音音位表 (Stopped Notes):[/bold white]")
+        stopped_table = Table(show_header=True, header_style="bold white", border_style="white")
+        stopped_table.add_column("徽位", style="white", justify="center", width=10)
         
         for i, string_name in enumerate(self.STRING_NAMES):
             header = f"{string_name}\n({self.tuning[i]})"
-            anyin_table.add_column(header, justify="center", width=8)
+            stopped_table.add_column(header, justify="center", width=8)
         
-        anyin_table.add_column("音程关系", style="white", justify="center", width=12)
+        stopped_table.add_column("音程关系", style="white", justify="center", width=12)
         
-        for i, position in enumerate(self.anyin_table['positions']):
+        for i, position in enumerate(self.stopped_notes_table['positions']):
             row = [position]
             for string_idx in range(7):
-                note_name = self.anyin_table['strings'][string_idx][i]
+                note_name = self.stopped_notes_table['strings'][string_idx][i]
                 if note_name:
                     try:
                         note = Note(note_name)
@@ -181,26 +183,26 @@ class GuqinTuningCalculator:
                         row.append(note_name)
                 else:
                     row.append("")
-            row.append(self.anyin_table['intervals'][i])
-            anyin_table.add_row(*row)
+            row.append(self.stopped_notes_table['intervals'][i])
+            stopped_table.add_row(*row)
         
-        console.print(anyin_table)
+        console.print(stopped_table)
         
-        # 显示泛音音位表
-        console.print("\n[bold white]泛音音位表:[/bold white]")
-        fanyin_table = Table(show_header=True, header_style="bold white", border_style="white")
-        fanyin_table.add_column("徽位", style="white", justify="center", width=10)
+        # 显示泛音音位表 (Harmonics)
+        console.print("\n[bold white]泛音音位表 (Harmonics):[/bold white]")
+        harmonics_table = Table(show_header=True, header_style="bold white", border_style="white")
+        harmonics_table.add_column("徽位", style="white", justify="center", width=10)
         
         for i, string_name in enumerate(self.STRING_NAMES):
             header = f"{string_name}\n({self.tuning[i]})"
-            fanyin_table.add_column(header, justify="center", width=8)
+            harmonics_table.add_column(header, justify="center", width=8)
         
-        fanyin_table.add_column("音程关系", style="white", justify="center", width=14)
+        harmonics_table.add_column("音程关系", style="white", justify="center", width=14)
         
-        for i, position in enumerate(self.fanyin_table['positions']):
+        for i, position in enumerate(self.harmonics_table['positions']):
             row = [position]
             for string_idx in range(7):
-                note_name = self.fanyin_table['strings'][string_idx][i]
+                note_name = self.harmonics_table['strings'][string_idx][i]
                 if note_name:
                     try:
                         note = Note(note_name)
@@ -211,10 +213,10 @@ class GuqinTuningCalculator:
                         row.append(note_name)
                 else:
                     row.append("")
-            row.append(self.fanyin_table['intervals'][i])
-            fanyin_table.add_row(*row)
+            row.append(self.harmonics_table['intervals'][i])
+            harmonics_table.add_row(*row)
         
-        console.print(fanyin_table)
+        console.print(harmonics_table)
         console.print("")
     
     def export_to_markdown(self, output_file: str, tuning_name: str = "自定义调弦"):
@@ -235,7 +237,7 @@ class GuqinTuningCalculator:
         lines.append(tuning_row)
         lines.append("")
         
-        # 按音音位表
+        # 按音音位表 (Stopped Notes)
         lines.append("## 按音音位表\n")
         lines.append("| **徽位**   | 一弦 (" + self.tuning[0] + ") | 二弦 (" + self.tuning[1] + 
                     ") | 三弦 (" + self.tuning[2] + ") | 四弦 (" + self.tuning[3] + 
@@ -243,17 +245,17 @@ class GuqinTuningCalculator:
                     ") | 七弦 (" + self.tuning[6] + ") | **音程关系** |")
         lines.append("| -------- | ------- | ------- | ------- | ------- | ------- | ------- | ------- | -------- |")
         
-        for i, position in enumerate(self.anyin_table['positions']):
+        for i, position in enumerate(self.stopped_notes_table['positions']):
             row = f"| **{position}**   |"
             for string_idx in range(7):
-                note = self.anyin_table['strings'][string_idx][i]
+                note = self.stopped_notes_table['strings'][string_idx][i]
                 row += f" {note if note else '':<7} |"
-            row += f" {self.anyin_table['intervals'][i]:<8} |"
+            row += f" {self.stopped_notes_table['intervals'][i]:<8} |"
             lines.append(row)
         
         lines.append("")
         
-        # 泛音音位表
+        # 泛音音位表 (Harmonics)
         lines.append("## 泛音音位表\n")
         lines.append("| **徽位**           | 一弦 (" + self.tuning[0] + ") | 二弦 (" + self.tuning[1] + 
                     ") | 三弦 (" + self.tuning[2] + ") | 四弦 (" + self.tuning[3] + 
@@ -261,12 +263,12 @@ class GuqinTuningCalculator:
                     ") | 七弦 (" + self.tuning[6] + ") | **音程关系**    |")
         lines.append("| ------------ | ------- | ------- | ------- | ------- | ------- | ------- | ------- | ------- |")
         
-        for i, position in enumerate(self.fanyin_table['positions']):
+        for i, position in enumerate(self.harmonics_table['positions']):
             row = f"| **{position}**          |"
             for string_idx in range(7):
-                note = self.fanyin_table['strings'][string_idx][i]
+                note = self.harmonics_table['strings'][string_idx][i]
                 row += f" {note if note else '':<7} |"
-            row += f" {self.fanyin_table['intervals'][i]:<8} |"
+            row += f" {self.harmonics_table['intervals'][i]:<8} |"
             lines.append(row)
         
         lines.append("")
