@@ -21,7 +21,7 @@ class MainScreen(Screen):
     """主界面"""
     
     BINDINGS = [
-        Binding("q", "quit", "退出", priority=True),
+        Binding("q", "quit", "退出"),
         Binding("question_mark", "help", "帮助"),
         Binding("slash", "search", "搜索"),
         Binding("colon", "command", "命令"),
@@ -97,6 +97,11 @@ class MainScreen(Screen):
         self.search_mode = False
         self.command_mode = False
         self.status_message = "就绪 | 按 ? 查看帮助"
+    
+    def on_mount(self) -> None:
+        """挂载时设置初始焦点"""
+        # 默认焦点在按音表
+        self.query_one("#stopped_table").focus()
         
     def compose(self) -> ComposeResult:
         """构建界面"""
@@ -194,6 +199,8 @@ class MainScreen(Screen):
         input_widget = self.query_one("#input", Input)
         input_widget.value = "/"
         input_widget.focus()
+        # 将光标移到末尾
+        input_widget.cursor_position = len(input_widget.value)
         self._update_status("搜索模式: 输入音名 (如 E4 或 E)")
     
     def action_command(self) -> None:
@@ -202,6 +209,8 @@ class MainScreen(Screen):
         input_widget = self.query_one("#input", Input)
         input_widget.value = ":"
         input_widget.focus()
+        # 将光标移到末尾
+        input_widget.cursor_position = len(input_widget.value)
         self._update_status("命令模式: 输入命令")
     
     def action_next_match(self) -> None:
@@ -236,26 +245,44 @@ class MainScreen(Screen):
     
     def action_clear(self) -> None:
         """清除搜索和高亮"""
-        table = self._get_current_table()
-        table.clear_search()
-        table.clear_highlights()
-        self.search_mode = False
-        self.command_mode = False
-        input_widget = self.query_one("#input", Input)
-        input_widget.value = ""
-        input_widget.blur()
-        self._update_status("已清除")
+        try:
+            # 清除两个表格的搜索和高亮
+            stopped_table = self.query_one("#stopped_table", PositionTable)
+            harmonics_table = self.query_one("#harmonics_table", PositionTable)
+            
+            stopped_table.clear_search()
+            stopped_table.clear_highlights()
+            harmonics_table.clear_search()
+            harmonics_table.clear_highlights()
+            
+            self.search_mode = False
+            self.command_mode = False
+            input_widget = self.query_one("#input", Input)
+            input_widget.value = ""
+            input_widget.blur()
+            
+            # 恢复当前表格焦点
+            self._get_current_table().focus()
+            
+            self._update_status("已清除")
+        except Exception as e:
+            self._update_status(f"清除失败: {e}")
     
     def action_switch_table(self) -> None:
         """切换表格焦点"""
-        if self.current_table == "stopped":
-            self.current_table = "harmonics"
-            self.query_one("#harmonics_table").focus()
-            self._update_status("切换到: 泛音表")
-        else:
-            self.current_table = "stopped"
-            self.query_one("#stopped_table").focus()
-            self._update_status("切换到: 按音表")
+        try:
+            if self.current_table == "stopped":
+                self.current_table = "harmonics"
+                harmonics_table = self.query_one("#harmonics_table", PositionTable)
+                harmonics_table.focus()
+                self._update_status("切换到: 泛音表")
+            else:
+                self.current_table = "stopped"
+                stopped_table = self.query_one("#stopped_table", PositionTable)
+                stopped_table.focus()
+                self._update_status("切换到: 按音表")
+        except Exception as e:
+            self._update_status(f"切换失败: {e}")
     
     def action_retune(self) -> None:
         """快速变调"""
@@ -280,6 +307,10 @@ class MainScreen(Screen):
         value = event.value.strip()
         
         if not value:
+            # 清空输入并恢复焦点
+            event.input.value = ""
+            event.input.blur()
+            self._get_current_table().focus()
             return
         
         # 搜索模式
@@ -290,6 +321,8 @@ class MainScreen(Screen):
                 count = table.search_note(pattern)
                 if count > 0:
                     self._update_status(f"找到 {count} 个匹配: {pattern}")
+                    # 搜索成功后保持表格焦点
+                    table.focus()
                 else:
                     self._update_status(f"未找到: {pattern}")
             else:
@@ -300,11 +333,12 @@ class MainScreen(Screen):
             command = value[1:].strip()
             self._execute_command(command)
         
-        # 清空输入
+        # 清空输入并恢复焦点
         event.input.value = ""
         event.input.blur()
         self.search_mode = False
         self.command_mode = False
+        self._get_current_table().focus()
     
     def _execute_command(self, command: str) -> None:
         """执行命令"""
