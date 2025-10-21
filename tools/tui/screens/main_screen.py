@@ -67,13 +67,21 @@ class MainScreen(Screen):
         padding: 0 1;
     }
     
-    #input_bar {
-        height: 3;
+    #command_line {
+        height: 1;
         dock: bottom;
+        background: $surface;
+        color: white;
+        padding: 0 1;
+    }
+    
+    #command_line.hidden {
+        display: none;
     }
     
     #status_bar {
         height: 1;
+        dock: bottom;
         background: $surface;
         color: white;
         padding: 0 1;
@@ -97,11 +105,14 @@ class MainScreen(Screen):
         self.search_mode = False
         self.command_mode = False
         self.status_message = "就绪 | 按 ? 查看帮助"
+        self.command_input = ""  # 当前命令行输入
     
     def on_mount(self) -> None:
         """挂载时设置初始焦点"""
         # 默认焦点在按音表
         self.query_one("#stopped_table").focus()
+        # 隐藏命令行
+        self._hide_command_line()
         
     def compose(self) -> ComposeResult:
         """构建界面"""
@@ -125,10 +136,11 @@ class MainScreen(Screen):
                 yield Static("泛音音位表 (Harmonics)", classes="table_title")
                 yield self._create_harmonics_table()
         
-        # 输入栏（搜索/命令）
-        with Container(id="input_bar"):
-            yield Input(placeholder="输入搜索或命令...", id="input")
-            yield Static(self.status_message, id="status_bar")
+        # vim 风格的命令行（默认隐藏）
+        yield Static("", id="command_line", classes="hidden")
+        
+        # 状态栏
+        yield Static(self.status_message, id="status_bar")
         
         yield Footer()
     
@@ -182,6 +194,24 @@ class MainScreen(Screen):
         status_bar = self.query_one("#status_bar", Static)
         status_bar.update(message)
     
+    def _show_command_line(self, prefix: str = "") -> None:
+        """显示命令行"""
+        command_line = self.query_one("#command_line", Static)
+        command_line.remove_class("hidden")
+        self.command_input = prefix
+        command_line.update(prefix)
+    
+    def _hide_command_line(self) -> None:
+        """隐藏命令行"""
+        command_line = self.query_one("#command_line", Static)
+        command_line.add_class("hidden")
+        self.command_input = ""
+    
+    def _update_command_line(self, text: str) -> None:
+        """更新命令行内容"""
+        command_line = self.query_one("#command_line", Static)
+        command_line.update(text)
+    
     # ===== 动作处理 =====
     
     def action_quit(self) -> None:
@@ -193,25 +223,19 @@ class MainScreen(Screen):
         from tui.screens import HelpScreen
         self.app.push_screen(HelpScreen())
     
-    def action_search(self) -> None:
+    async def action_search(self) -> None:
         """进入搜索模式"""
         self.search_mode = True
-        input_widget = self.query_one("#input", Input)
-        input_widget.value = "/"
-        input_widget.focus()
-        # 将光标移到末尾
-        input_widget.cursor_position = len(input_widget.value)
-        self._update_status("搜索模式: 输入音名 (如 E4 或 E)")
+        self.command_mode = False
+        self._show_command_line("/")
+        self._update_status("搜索模式: 输入音名后按回车")
     
-    def action_command(self) -> None:
+    async def action_command(self) -> None:
         """进入命令模式"""
         self.command_mode = True
-        input_widget = self.query_one("#input", Input)
-        input_widget.value = ":"
-        input_widget.focus()
-        # 将光标移到末尾
-        input_widget.cursor_position = len(input_widget.value)
-        self._update_status("命令模式: 输入命令")
+        self.search_mode = False
+        self._show_command_line(":")
+        self._update_status("命令模式: 输入命令后按回车")
     
     def action_next_match(self) -> None:
         """下一个匹配"""
@@ -255,11 +279,10 @@ class MainScreen(Screen):
             harmonics_table.clear_search()
             harmonics_table.clear_highlights()
             
+            # 退出命令/搜索模式
             self.search_mode = False
             self.command_mode = False
-            input_widget = self.query_one("#input", Input)
-            input_widget.value = ""
-            input_widget.blur()
+            self._hide_command_line()
             
             # 恢复当前表格焦点
             self._get_current_table().focus()
@@ -300,16 +323,51 @@ class MainScreen(Screen):
         table.move_cursor(row=len(table.positions) - 1)
         self._update_status("跳到底部")
     
-    # ===== 输入处理 =====
+    # ===== 键盘输入处理 =====
     
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        """处理输入提交"""
-        value = event.value.strip()
+    def _on_key(self, event) -> None:
+        """处理键盘输入（内部方法）"""
+        # 如果在命令/搜索模式
+        if self.search_mode or self.command_mode:
+            if event.key == "enter":
+                # 执行命令或搜索
+                self._execute_command_line()
+                event.stop()
+                event.prevent_default()
+            elif event.key == "escape":
+                # 取消
+                self.action_clear()
+                event.stop()
+                event.prevent_default()
+            elif event.key == "backspace":
+                # 删除字符
+                if len(self.command_input) > 1:  # 保留 / 或 :
+                    self.command_input = self.command_input[:-1]
+                    self._update_command_line(self.command_input)
+                event.stop()
+                event.prevent_default()
+            elif len(event.key) == 1 and event.key.isprintable():
+                # 添加字符
+                self.command_input += event.key
+                self._update_command_line(self.command_input)
+                event.stop()
+                event.prevent_default()
+    
+    async def on_key(self, event) -> None:
+        """处理所有键盘事件"""
+        # 先处理命令行输入
+        if self.search_mode or self.command_mode:
+            self._on_key(event)
+        # 不在命令模式时，让默认处理继续
+    
+    def _execute_command_line(self) -> None:
+        """执行命令行内容"""
+        value = self.command_input.strip()
         
-        if not value:
-            # 清空输入并恢复焦点
-            event.input.value = ""
-            event.input.blur()
+        if not value or len(value) <= 1:
+            self._hide_command_line()
+            self.search_mode = False
+            self.command_mode = False
             self._get_current_table().focus()
             return
         
@@ -321,8 +379,6 @@ class MainScreen(Screen):
                 count = table.search_note(pattern)
                 if count > 0:
                     self._update_status(f"找到 {count} 个匹配: {pattern}")
-                    # 搜索成功后保持表格焦点
-                    table.focus()
                 else:
                     self._update_status(f"未找到: {pattern}")
             else:
@@ -333,9 +389,8 @@ class MainScreen(Screen):
             command = value[1:].strip()
             self._execute_command(command)
         
-        # 清空输入并恢复焦点
-        event.input.value = ""
-        event.input.blur()
+        # 清空并恢复
+        self._hide_command_line()
         self.search_mode = False
         self.command_mode = False
         self._get_current_table().focus()
